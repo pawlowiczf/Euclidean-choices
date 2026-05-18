@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 import random
+
+from election.result import ElectionResult
 
 
 def random_2d_point(bounds_x=(-5, 5), bounds_y=(-5, 5)) -> tuple[float, float]:
@@ -31,9 +34,9 @@ def plot(candidates: np.ndarray, voters: np.ndarray, mpl_params: dict = None):
     plt.scatter(voters[:, 0], voters[:, 1], marker="o", label="Voters")
 
 
-def plot_results(candidates: list, voters: list, results: dict[str, "Candidate"]):
-    candidates_arr = np.array([c.position for c in candidates])
-    voters_arr = np.array([v.position for v in voters])
+def plot_results(result: ElectionResult):
+    candidates_arr = np.array([c.position for c in result.candidates])
+    voters_arr = np.array([v.position for v in result.voters])
 
     plt.scatter(
         candidates_arr[:, 0],
@@ -52,9 +55,9 @@ def plot_results(candidates: list, voters: list, results: dict[str, "Candidate"]
     )
 
     winner_to_strategies = {}
-    for strategy_name, winner in results.items():
+    for strategy, winner in result.winners().items():
         winner_to_strategies.setdefault(winner.id, (winner, []))[1].append(
-            str(strategy_name)
+            str(strategy)
         )
 
     colors = plt.cm.tab10.colors
@@ -65,4 +68,16 @@ def plot_results(candidates: list, voters: list, results: dict[str, "Candidate"]
     plt.gcf().set_size_inches(8, 7)
     plt.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, fontsize=8)
     plt.tight_layout()
+    plt.show()
+
+
+def plot_winner_distance_histogram(distances: list[float], bins: int = 5):
+    plt.hist(distances, bins=bins, edgecolor="black")
+    plt.xlabel("Average distance between winners")
+    plt.ylabel("Number of elections")
+    plt.title("Distribution of winner dispersion across strategies")
+
+    plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(5))
+    plt.gca().yaxis.set_major_locator(ticker.MaxNLocator(5))
+
     plt.show()
