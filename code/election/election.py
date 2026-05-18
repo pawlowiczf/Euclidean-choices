@@ -1,6 +1,8 @@
 from candidate.candidate import Candidate
 from voter.voter import Voter
 from strategy.strategy import VotingStrategy
+from election.tally import Tally
+from election.result import ElectionResult
 
 
 class Election:
@@ -8,27 +10,20 @@ class Election:
         self.candidates = candidates
         self.voters = voters
 
-    def run(self, strategy: VotingStrategy = None):
-        self.reset_candidates_scores()
-        id_to_candidate = {c.id: c for c in self.candidates}
-
+    def run(self, strategy: VotingStrategy) -> Tally:
+        scores = {c.id: 0.0 for c in self.candidates}
         for voter in self.voters:
             points = voter.vote(self.candidates, strategy)
             for candidate_id, pts in points.items():
-                id_to_candidate[candidate_id].score += pts
-
-    def winner(self) -> Candidate:
-        return max(self.candidates, key=lambda c: c.score)
+                scores[candidate_id] += pts
+        return Tally(scores=scores)
 
     def compare_strategies(
-        self, strategies: list[VotingStrategy]
-    ) -> dict[VotingStrategy, Candidate]:
-        results = {}
-        for strategy in strategies:
-            self.run(strategy)
-            results[strategy] = self.winner()
-        return results
-
-    def reset_candidates_scores(self):
-        for candidate in self.candidates:
-            candidate.reset_score()
+        self, strategies: list[VotingStrategy], label: str | None = None
+    ) -> ElectionResult:
+        return ElectionResult(
+            candidates=list(self.candidates),
+            voters=list(self.voters),
+            tallies={s: self.run(s) for s in strategies},
+            label=label,
+        )
