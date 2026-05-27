@@ -71,13 +71,20 @@ def plot_results(result: ElectionResult):
     plt.show()
 
 
-def plot_winner_distance_histogram(distances: list[float], bins: int = 5):
-    plt.hist(distances, bins=bins, edgecolor="black")
-    plt.xlabel("Average distance between winners")
-    plt.ylabel("Number of elections")
-    plt.title("Distribution of winner dispersion across strategies")
+def plot_winner_distance_histogram(
+    distances: list[float], bins: int = 5, ax: plt.Axes | None = None
+):
+    standalone = ax is None
+    if standalone:
+        ax = plt.gca()
 
-    plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(5))
-    plt.gca().yaxis.set_major_locator(ticker.MaxNLocator(5))
+    ax.hist(distances, bins=bins, edgecolor="black")
+    ax.set_xlabel("Average distance between winners")
+    ax.set_ylabel("Number of elections")
+    ax.set_title("Distribution of winner dispersion across strategies")
 
-    plt.show()
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(5))
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(5))
+
+    if standalone:
+        plt.show()
