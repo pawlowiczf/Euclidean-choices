@@ -117,28 +117,22 @@ def plot_lp_result(
         )
 
     for idx, c in enumerate(candidates):
-        ax.scatter(*c.position, marker="x", s=300, c="black", linewidths=3, zorder=4)
+        ax.scatter(*c.position, marker="x", s=150, c=[colors[idx % len(colors)]], linewidths=3, zorder=4)
         ax.annotate(
             f"C{idx}",
             c.position,
             fontsize=12,
             fontweight="bold",
-            xytext=(0, 10),
+            xytext=(0, 14),
             textcoords="offset points",
             ha="center",
         )
 
     winner_proxies = []
     if winners:
-        strategy_styles = [
-            ("plurality", "red", 700),
-            ("borda", "blue", 1100),
-            ("veto", "purple", 1500),
-        ]
-        for strategy, ring_color, ring_size in strategy_styles:
-            if strategy not in winners:
-                continue
-            idx = winners[strategy]
+        for strategy, idx in winners.items():
+            ring_color = colors[idx % len(colors)]
+            ring_size = 350
             ax.scatter(
                 *candidates[idx].position,
                 marker="o",
@@ -172,24 +166,13 @@ def plot_lp_result(
     ax.set_aspect("equal")
     ax.set_title(title)
     voter_handles, _ = ax.get_legend_handles_labels()
-    voter_legend = ax.legend(
-        handles=voter_handles,
-        title="Voters",
+    ax.legend(
+        handles=voter_handles + winner_proxies,
         loc="upper center",
         bbox_to_anchor=(0.5, -0.05),
         ncols=3,
         fontsize=8,
     )
-    ax.add_artist(voter_legend)
-    if winner_proxies:
-        ax.legend(
-            handles=winner_proxies,
-            title="Strategy winners",
-            loc="upper center",
-            bbox_to_anchor=(0.5, -0.13),
-            ncols=3,
-            fontsize=8,
-        )
 
     if standalone:
         plt.tight_layout()
