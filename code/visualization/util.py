@@ -113,7 +113,7 @@ def plot_lp_result(
             alpha=0.75,
             edgecolors="black",
             linewidths=0.4,
-            label=f"top: C{cand_idx} (n={int(mask.sum())})",
+            label=f"Top choice: C{cand_idx} ({int(mask.sum())} voters)",
         )
 
     for idx, c in enumerate(candidates):
@@ -123,11 +123,12 @@ def plot_lp_result(
             c.position,
             fontsize=12,
             fontweight="bold",
-            xytext=(7, 7),
+            xytext=(0, 10),
             textcoords="offset points",
+            ha="center",
         )
 
-    ring_proxies = []
+    winner_proxies = []
     if winners:
         strategy_styles = [
             ("plurality", "red", 700),
@@ -147,10 +148,9 @@ def plot_lp_result(
                 linewidths=3,
                 zorder=5,
             )
-            ring_proxies.append(
+            winner_proxies.append(
                 mlines.Line2D(
-                    [],
-                    [],
+                    [], [],
                     marker="o",
                     linestyle="None",
                     markerfacecolor="none",
@@ -162,9 +162,9 @@ def plot_lp_result(
             )
 
     n_skipped = int((~valid).sum())
-    title = f"{len(placed)} voters: color = top choice"
+    title = f"Voter Distribution in Euclidean Space (n = {len(placed)})"
     if n_skipped:
-        title += f" ({n_skipped} not realizable in 2D)"
+        title += f"\n{n_skipped} voters excluded: ranking not realizable in 2D"
 
     margin = 0.5
     ax.set_xlim(bounds[0] - margin, bounds[1] + margin)
@@ -172,12 +172,24 @@ def plot_lp_result(
     ax.set_aspect("equal")
     ax.set_title(title)
     voter_handles, _ = ax.get_legend_handles_labels()
-    ax.legend(
-        handles=voter_handles + ring_proxies,
-        loc="upper left",
-        bbox_to_anchor=(1.02, 1),
+    voter_legend = ax.legend(
+        handles=voter_handles,
+        title="Voters",
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.05),
+        ncols=3,
         fontsize=8,
     )
+    ax.add_artist(voter_legend)
+    if winner_proxies:
+        ax.legend(
+            handles=winner_proxies,
+            title="Strategy winners",
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.13),
+            ncols=3,
+            fontsize=8,
+        )
 
     if standalone:
         plt.tight_layout()

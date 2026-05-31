@@ -60,6 +60,13 @@ class LpModel(ABC):
         self.status = LpStatus[self.model.status]
         return self.status
 
+    def print_variables(self) -> None:
+        if self.model is None:
+            print("Model not built yet.")
+            return
+        for var in self.model.variables():
+            print(f"{var.name}: {var.varValue}")
+
     @abstractmethod
     def generate_voter_positions(self) -> np.ndarray: ...
 
@@ -201,8 +208,8 @@ class PermutationLpModel(LpModel):
 
         self.model = LpProblem("permutation_lp", LpMinimize)
         self.variables = {
-            sigma: LpVariable(f"x_{idx}", lowBound=0, cat="Integer")
-            for idx, sigma in enumerate(self.realizable_rankings)
+            sigma: LpVariable(f"x_{sigma}", lowBound=0, cat="Integer")
+            for sigma in self.realizable_rankings
         }
         x = self.variables
 
@@ -253,3 +260,10 @@ class PermutationLpModel(LpModel):
             for idx in indices:
                 positions.append(pool_pts[idx])
         return np.array(positions)
+
+    def print_variables(self) -> None:
+        if self.variables is None:
+            print("Model not built yet.")
+            return
+        for sigma, var in self.variables.items():
+            print(f"{sigma}: {var.varValue}")
