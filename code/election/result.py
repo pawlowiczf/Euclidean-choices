@@ -10,11 +10,11 @@ from election.tally import Tally
 class ElectionResult:
     candidates: list[Candidate]
     voters: list[Voter]
-    tallies: dict[VotingStrategy, Tally]
+    tallies: dict[str, Tally]
     label: str | None = None
 
     def winner(self, strategy: VotingStrategy) -> Candidate:
-        return self.tallies[strategy].winner(self.candidates)
+        return self.tallies[strategy.name].winner(self.candidates)
 
-    def winners(self) -> dict[VotingStrategy, Candidate]:
-        return {s: t.winner(self.candidates) for s, t in self.tallies.items()}
+    def winners(self) -> dict[str, Candidate]:
+        return {name: t.winner(self.candidates) for name, t in self.tallies.items()}

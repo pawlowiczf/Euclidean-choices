@@ -5,7 +5,12 @@ from candidate.candidate import Candidate
 
 
 class BordaCountStrategy(VotingStrategy):
-    def __str__(self):
+    @property
+    def key(self) -> str:
+        return "borda"
+
+    @property
+    def name(self) -> str:
         return "Borda count"
 
     def choose(

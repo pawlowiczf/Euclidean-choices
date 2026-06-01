@@ -56,9 +56,9 @@ def plot_results(result: ElectionResult):
     )
 
     winner_to_strategies = {}
-    for strategy, winner in result.winners().items():
+    for strategy_name, winner in result.winners().items():
         winner_to_strategies.setdefault(winner.id, (winner, []))[1].append(
-            str(strategy)
+            strategy_name
         )
 
     colors = plt.cm.tab10.colors

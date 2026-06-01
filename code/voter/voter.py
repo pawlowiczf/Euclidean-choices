@@ -10,5 +10,5 @@ class Voter:
         self.position = position
         self.strategy = strategy
 
-    def vote(self, candidates: list[Candidate], strategy: VotingStrategy = None) -> int:
+    def vote(self, candidates: list[Candidate], strategy: VotingStrategy = None) -> dict[int, float]:
         return (strategy or self.strategy).choose(self.position, candidates)

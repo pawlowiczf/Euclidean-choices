@@ -8,6 +8,15 @@ from scipy.optimize import linprog
 
 Ranking = tuple[int, ...]
 
+# Selectable "evenness" objectives that pick *which* feasible voter distribution to
+# return (all of them are linear). They only affect quality/shape of the solution,
+# not whether the winner constraints are satisfiable.
+#   "feasibility" - no objective, any feasible point
+#   "minmax"      - min M  s.t. x_s <= M           (cap the largest bucket)
+#   "maxmin"      - max m  s.t. x_s >= m            (lift the smallest bucket)
+#   "range"       - min M - m  s.t. m <= x_s <= M   (squeeze the spread)
+OBJECTIVES = ("feasibility", "minmax", "maxmin", "range", "l1")
+
 
 class LpModel(ABC):
     """Base class for LP models that find voter distributions producing target strategy winners."""
@@ -19,12 +28,17 @@ class LpModel(ABC):
         winners: dict[str, int],
         bounds: tuple[float, float] = (-5.0, 5.0),
         rng: np.random.Generator | None = None,
+        objective: str = "feasibility",
     ):
+        if objective not in OBJECTIVES:
+            raise ValueError(f"objective must be one of {OBJECTIVES}, got {objective!r}")
+
         self.candidates = candidates
         self.n_voters = n_voters
         self.winners = winners
         self.bounds = bounds
         self.rng = rng if rng is not None else np.random.default_rng()
+        self.objective = objective
 
         self.n_candidates = len(candidates)
         self.candidate_positions = np.array([c.position for c in candidates])
@@ -49,6 +63,49 @@ class LpModel(ABC):
 
         self._points_by_ranking = grouped
         return grouped
+
+    def _add_objective(self, variables: list[LpVariable], total: int) -> None:
+        """Set the configured evenness objective over the given count variables.
+
+        variables : the per-bucket decision variables to balance
+        total     : their required sum (used to derive the uniform target mean mu)
+
+        Auxiliary variables (M, m) are declared Integer. They are functionally pinned
+        to the (integer) x_s at any feasible point, so integrality doesn't change the
+        solution set but it tightens the LP relaxation and lets CBC close the gap
+        faster (notably for "range").
+        """
+        obj = self.objective
+        if obj == "feasibility":
+            return
+
+        if obj == "minmax":
+            M = LpVariable("M", lowBound=0, cat="Integer")
+            self.model += M
+            for v in variables:
+                self.model += v <= M
+
+        elif obj == "maxmin":
+            m = LpVariable("m", lowBound=0, cat="Integer")
+            self.model += -m  # LpMinimize, so minimizing -m maximizes m
+            for v in variables:
+                self.model += v >= m
+
+        elif obj == "range":
+            M = LpVariable("M", lowBound=0, cat="Integer")
+            m = LpVariable("m", lowBound=0, cat="Integer")
+            self.model += M - m
+            for v in variables:
+                self.model += v <= M
+                self.model += v >= m
+
+        elif obj == "l1":
+            mu = total / len(variables)
+            deviations = [LpVariable(f"d_{i}", lowBound=0) for i in range(len(variables))]
+            self.model += lpSum(deviations)
+            for d, v in zip(deviations, variables):
+                self.model += d >= v - mu
+                self.model += d >= mu - v
 
     @abstractmethod
     def build(self) -> None: ...
@@ -81,8 +138,9 @@ class MarginalLpModel(LpModel):
         winners: dict[str, int],
         bounds: tuple[float, float] = (-5.0, 5.0),
         rng: np.random.Generator | None = None,
+        objective: str = "feasibility",
     ):
-        super().__init__(candidates, n_voters, winners, bounds, rng)
+        super().__init__(candidates, n_voters, winners, bounds, rng, objective)
         self.variables: list[list[LpVariable]] | None = None
 
     def build(self) -> None:
@@ -126,6 +184,9 @@ class MarginalLpModel(LpModel):
                     lpSum(c[w_veto][r] for r in range(N - 1))
                     >= lpSum(c[i][r] for r in range(N - 1)) + 1
                 )
+
+        # Balance the rank-position cells.
+        self._add_objective([c[i][r] for i in range(N) for r in range(N)], N * V)
 
     def get_matrix(self) -> np.ndarray:
         N = self.n_candidates
@@ -193,8 +254,9 @@ class PermutationLpModel(LpModel):
         bounds: tuple[float, float] = (-5.0, 5.0),
         rng: np.random.Generator | None = None,
         pool_size: int = 300_000,
+        objective: str = "feasibility",
     ):
-        super().__init__(candidates, n_voters, winners, bounds, rng)
+        super().__init__(candidates, n_voters, winners, bounds, rng, objective)
         self.pool_size = pool_size
         self.variables: dict[Ranking, LpVariable] | None = None
         self.realizable_rankings: list[Ranking] | None = None
@@ -245,6 +307,8 @@ class PermutationLpModel(LpModel):
             for j in range(N):
                 if j != w_veto:
                     self.model += last_count[w_veto] + 1 <= last_count[j]
+
+        self._add_objective(list(x.values()), V)
 
     def generate_voter_positions(self) -> np.ndarray:
         pool = self._sample_pool()

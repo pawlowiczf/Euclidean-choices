@@ -5,7 +5,12 @@ from candidate.candidate import Candidate
 
 
 class PluralityStrategy(VotingStrategy):
-    def __str__(self):
+    @property
+    def key(self) -> str:
+        return "plurality"
+
+    @property
+    def name(self) -> str:
         return "Plurality rule"
 
     def choose(

@@ -24,6 +24,6 @@ class Election:
         return ElectionResult(
             candidates=list(self.candidates),
             voters=list(self.voters),
-            tallies={s: self.run(s) for s in strategies},
+            tallies={s.name: self.run(s) for s in strategies},
             label=label,
         )

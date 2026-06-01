@@ -5,7 +5,12 @@ from candidate.candidate import Candidate
 
 
 class VetoStrategy(VotingStrategy):
-    def __str__(self):
+    @property
+    def key(self) -> str:
+        return "veto"
+
+    @property
+    def name(self) -> str:
         return "Veto rule"
 
     def choose(
