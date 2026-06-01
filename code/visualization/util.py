@@ -117,7 +117,14 @@ def plot_lp_result(
         )
 
     for idx, c in enumerate(candidates):
-        ax.scatter(*c.position, marker="x", s=150, c=[colors[idx % len(colors)]], linewidths=3, zorder=4)
+        ax.scatter(
+            *c.position,
+            marker="x",
+            s=150,
+            c=[colors[idx % len(colors)]],
+            linewidths=3,
+            zorder=4,
+        )
         ax.annotate(
             f"C{idx}",
             c.position,
@@ -144,7 +151,8 @@ def plot_lp_result(
             )
             winner_proxies.append(
                 mlines.Line2D(
-                    [], [],
+                    [],
+                    [],
                     marker="o",
                     linestyle="None",
                     markerfacecolor="none",

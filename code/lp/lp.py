@@ -15,7 +15,7 @@ Ranking = tuple[int, ...]
 #   "minmax"      - min M  s.t. x_s <= M           (cap the largest bucket)
 #   "maxmin"      - max m  s.t. x_s >= m            (lift the smallest bucket)
 #   "range"       - min M - m  s.t. m <= x_s <= M   (squeeze the spread)
-OBJECTIVES = ("feasibility", "minmax", "maxmin", "range", "l1")
+OBJECTIVES = ("feasibility", "minmax", "maxmin", "range")
 
 
 class LpModel(ABC):
@@ -31,7 +31,9 @@ class LpModel(ABC):
         objective: str = "feasibility",
     ):
         if objective not in OBJECTIVES:
-            raise ValueError(f"objective must be one of {OBJECTIVES}, got {objective!r}")
+            raise ValueError(
+                f"objective must be one of {OBJECTIVES}, got {objective!r}"
+            )
 
         self.candidates = candidates
         self.n_voters = n_voters
@@ -64,11 +66,10 @@ class LpModel(ABC):
         self._points_by_ranking = grouped
         return grouped
 
-    def _add_objective(self, variables: list[LpVariable], total: int) -> None:
+    def _add_objective(self, variables: list[LpVariable]) -> None:
         """Set the configured evenness objective over the given count variables.
 
         variables : the per-bucket decision variables to balance
-        total     : their required sum (used to derive the uniform target mean mu)
 
         Auxiliary variables (M, m) are declared Integer. They are functionally pinned
         to the (integer) x_s at any feasible point, so integrality doesn't change the
@@ -98,14 +99,6 @@ class LpModel(ABC):
             for v in variables:
                 self.model += v <= M
                 self.model += v >= m
-
-        elif obj == "l1":
-            mu = total / len(variables)
-            deviations = [LpVariable(f"d_{i}", lowBound=0) for i in range(len(variables))]
-            self.model += lpSum(deviations)
-            for d, v in zip(deviations, variables):
-                self.model += d >= v - mu
-                self.model += d >= mu - v
 
     @abstractmethod
     def build(self) -> None: ...
@@ -186,7 +179,7 @@ class MarginalLpModel(LpModel):
                 )
 
         # Balance the rank-position cells.
-        self._add_objective([c[i][r] for i in range(N) for r in range(N)], N * V)
+        self._add_objective([c[i][r] for i in range(N) for r in range(N)])
 
     def get_matrix(self) -> np.ndarray:
         N = self.n_candidates
@@ -308,7 +301,7 @@ class PermutationLpModel(LpModel):
                 if j != w_veto:
                     self.model += last_count[w_veto] + 1 <= last_count[j]
 
-        self._add_objective(list(x.values()), V)
+        self._add_objective(list(x.values()))
 
     def generate_voter_positions(self) -> np.ndarray:
         pool = self._sample_pool()
