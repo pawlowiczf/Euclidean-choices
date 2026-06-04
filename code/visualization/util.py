@@ -7,13 +7,13 @@ import random
 from election.result import ElectionResult
 
 
-def random_2d_point(bounds_x=(-5, 5), bounds_y=(-5, 5)) -> tuple[float, float]:
+def random_2d_point(bounds_x=(-10, 10), bounds_y=(-10, 10)) -> tuple[float, float]:
     x = random.uniform(bounds_x[0], bounds_x[1])
     y = random.uniform(bounds_y[0], bounds_y[1])
     return (x, y)
 
 
-def random_2d_points(n: int = 5, bounds_x=(-5, 5), bounds_y=(-5, 5)) -> np.ndarray:
+def random_2d_points(n: int = 5, bounds_x=(-10, 10), bounds_y=(-10, 10)) -> np.ndarray:
     points = np.zeros((n, 2))
 
     for i in range(n):
@@ -47,49 +47,119 @@ def plot(candidates: np.ndarray, voters: np.ndarray, mpl_params: dict = None):
     plt.scatter(voters[:, 0], voters[:, 1], marker="o", label="Voters")
 
 
-def plot_results(result: ElectionResult):
-    candidates_arr = np.array([c.position for c in result.candidates])
-    voters_arr = np.array([v.position for v in result.voters])
+def plot_results(
+    result: ElectionResult,
+    bounds: tuple[float, float] = (-10.0, 10.0),
+    ax: plt.Axes | None = None,
+):
+    """Plot an ElectionResult in the same style as plot_lp_result: gray voters,
+    green "x" candidates, colored stars for strategy winners, a bottom legend and
+    stripped axes on a fixed square scale."""
+    standalone = ax is None
+    if standalone:
+        _, ax = plt.subplots(figsize=(9, 8))
 
-    plt.scatter(
-        candidates_arr[:, 0],
-        candidates_arr[:, 1],
-        color="green",
-        marker="x",
-        label="Candidates",
-    )
-    plt.scatter(
-        voters_arr[:, 0],
-        voters_arr[:, 1],
-        marker="o",
-        color="gray",
-        label="Voters",
-        alpha=0.4,
-    )
+    voters_arr = np.array([v.position for v in result.voters])
 
     winner_to_strategies = {}
     for strategy_name, winner in result.winners().items():
         winner_to_strategies.setdefault(winner.id, (winner, []))[1].append(
             strategy_name
         )
+    winner_ids = set(winner_to_strategies)
+
+    ax.scatter(
+        voters_arr[:, 0],
+        voters_arr[:, 1],
+        marker="o",
+        color="gray",
+        s=45,
+        alpha=0.4,
+        label=f"Voters ({len(voters_arr)})",
+    )
+    # Draw the green "x" only for non-winning candidates; a winner's marker becomes
+    # a star (drawn below) so the two symbols never stack on the same point.
+    non_winners = np.array(
+        [c.position for c in result.candidates if c.id not in winner_ids]
+    )
+    if len(non_winners):
+        ax.scatter(
+            non_winners[:, 0],
+            non_winners[:, 1],
+            marker="x",
+            s=150,
+            color="green",
+            linewidths=3,
+            zorder=4,
+            label="Candidates",
+        )
+    for c in result.candidates:
+        ax.annotate(
+            f"C{c.id}",
+            c.position,
+            fontsize=12,
+            fontweight="bold",
+            xytext=(0, 14),
+            textcoords="offset points",
+            ha="center",
+        )
 
     colors = plt.cm.tab10.colors
+    winner_proxies = []
     for i, (winner, strategy_names) in enumerate(winner_to_strategies.values()):
-        label = "Winner:\n" + "\n".join(strategy_names)
-        plt.scatter(*winner.position, marker="*", s=300, color=colors[i], label=label)
+        win_color = colors[i % len(colors)]
+        ax.scatter(
+            *winner.position,
+            marker="*",
+            s=320,
+            facecolors=win_color,
+            edgecolors="black",
+            linewidths=1.2,
+            zorder=5,
+        )
+        winner_proxies.append(
+            mlines.Line2D(
+                [],
+                [],
+                marker="*",
+                linestyle="None",
+                markerfacecolor=win_color,
+                markeredgecolor="black",
+                markersize=11,
+                markeredgewidth=1.2,
+                label=f"Winner – {', '.join(strategy_names)} (C{winner.id})",
+            )
+        )
 
-    plt.gcf().set_size_inches(8, 7)
-    plt.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, fontsize=8)
-    _strip_axes(plt.gca())
-    plt.tight_layout()
-    plt.show()
+    title = f"Voter Distribution in Euclidean Space (n = {len(voters_arr)})"
+    margin = 0.5
+    ax.set_xlim(bounds[0] - margin, bounds[1] + margin)
+    ax.set_ylim(bounds[0] - margin, bounds[1] + margin)
+    ax.set_aspect("equal")
+    ax.set_title(title)
+    _strip_axes(ax)
+    handles, _ = ax.get_legend_handles_labels()
+    ax.legend(
+        handles=handles + winner_proxies,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.01),
+        ncols=3,
+        fontsize=8,
+        labelspacing=0.9,
+        columnspacing=1.5,
+        handletextpad=0.6,
+    )
+
+    if standalone:
+        plt.tight_layout()
+        plt.show()
 
 
 def plot_lp_result(
     candidates: list,
     positions: np.ndarray,
     winners: dict[str, int] | None = None,
-    bounds: tuple[float, float] = (-5.0, 5.0),
+    bounds: tuple[float, float] = (-10.0, 10.0),
     ax: plt.Axes | None = None,
     color_voters: bool = True,
 ):

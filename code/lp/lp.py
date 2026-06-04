@@ -26,7 +26,7 @@ class LpModel(ABC):
         candidates: list,
         n_voters: int,
         winners: dict[str, int],
-        bounds: tuple[float, float] = (-5.0, 5.0),
+        bounds: tuple[float, float] = (-10.0, 10.0),
         rng: np.random.Generator | None = None,
         objective: str = "feasibility",
     ):
@@ -121,121 +121,6 @@ class LpModel(ABC):
     def generate_voter_positions(self) -> np.ndarray: ...
 
 
-class MarginalLpModel(LpModel):
-    """LP with c[i][r] = number of voters who have candidate i at rank r."""
-
-    def __init__(
-        self,
-        candidates: list,
-        n_voters: int,
-        winners: dict[str, int],
-        bounds: tuple[float, float] = (-5.0, 5.0),
-        rng: np.random.Generator | None = None,
-        objective: str = "feasibility",
-    ):
-        super().__init__(candidates, n_voters, winners, bounds, rng, objective)
-        self.variables: list[list[LpVariable]] | None = None
-
-    def build(self) -> None:
-        N = self.n_candidates
-        V = self.n_voters
-        self.model = LpProblem("marginal_lp", LpMinimize)
-        self.variables = [
-            [LpVariable(f"c_{i}_{r}", lowBound=0, cat="Integer") for r in range(N)]
-            for i in range(N)
-        ]
-        c = self.variables
-
-        for r in range(N):
-            self.model += lpSum(c[i][r] for i in range(N)) == V
-        for i in range(N):
-            self.model += lpSum(c[i][r] for r in range(N)) == V
-
-        w_plur = self.winners.get("plurality")
-        w_borda = self.winners.get("borda")
-        w_veto = self.winners.get("veto")
-
-        if w_plur is not None:
-            for i in range(N):
-                if i != w_plur:
-                    self.model += c[w_plur][0] >= c[i][0] + 1
-
-        if w_borda is not None:
-            for i in range(N):
-                if i == w_borda:
-                    continue
-                self.model += (
-                    lpSum((N - 1 - r) * c[w_borda][r] for r in range(N))
-                    >= lpSum((N - 1 - r) * c[i][r] for r in range(N)) + 1
-                )
-
-        if w_veto is not None:
-            for i in range(N):
-                if i == w_veto:
-                    continue
-                self.model += (
-                    lpSum(c[w_veto][r] for r in range(N - 1))
-                    >= lpSum(c[i][r] for r in range(N - 1)) + 1
-                )
-
-        # Balance the rank-position cells.
-        self._add_objective([c[i][r] for i in range(N) for r in range(N)])
-
-    def get_matrix(self) -> np.ndarray:
-        N = self.n_candidates
-        return np.array(
-            [
-                [int(self.variables[i][r].varValue or 0) for r in range(N)]
-                for i in range(N)
-            ]
-        )
-
-    def generate_voter_positions(self) -> np.ndarray:
-        N = self.n_candidates
-        V = self.n_voters
-        remaining = self.get_matrix()
-
-        voter_rankings: list[list[int]] = []
-        for voter_idx in range(V):
-            ranking = [-1] * N
-            used: set[int] = set()
-
-            def fill(r: int) -> bool:
-                if r == N:
-                    return True
-                available = [
-                    i for i in range(N) if remaining[i][r] > 0 and i not in used
-                ]
-                for k in self.rng.permutation(len(available)):
-                    chosen = available[int(k)]
-                    ranking[r] = chosen
-                    used.add(chosen)
-                    remaining[chosen][r] -= 1
-                    if fill(r + 1):
-                        return True
-                    ranking[r] = -1
-                    used.remove(chosen)
-                    remaining[chosen][r] += 1
-                return False
-
-            if not fill(0):
-                raise RuntimeError(
-                    f"cannot build ranking for voter {voter_idx + 1}; "
-                    f"matrix not decomposable (shouldn't happen for LP-produced matrices)"
-                )
-            voter_rankings.append(ranking.copy())
-
-        pool = self._sample_pool()
-        positions = []
-        for ranking in voter_rankings:
-            pts = pool.get(tuple(ranking), [])
-            if not pts:
-                positions.append(np.array([np.nan, np.nan]))
-                continue
-            positions.append(pts[self.rng.integers(0, len(pts))])
-        return np.array(positions)
-
-
 class PermutationLpModel(LpModel):
     """LP with x[sigma] = number of voters whose full ranking is sigma."""
 
@@ -244,7 +129,7 @@ class PermutationLpModel(LpModel):
         candidates: list,
         n_voters: int,
         winners: dict[str, int],
-        bounds: tuple[float, float] = (-5.0, 5.0),
+        bounds: tuple[float, float] = (-10.0, 10.0),
         rng: np.random.Generator | None = None,
         pool_size: int = 300_000,
         objective: str = "feasibility",
@@ -324,3 +209,119 @@ class PermutationLpModel(LpModel):
             return
         for sigma, var in self.variables.items():
             print(f"{sigma}: {var.varValue}")
+
+####
+
+# class MarginalLpModel(LpModel):
+#     """LP with c[i][r] = number of voters who have candidate i at rank r."""
+
+#     def __init__(
+#         self,
+#         candidates: list,
+#         n_voters: int,
+#         winners: dict[str, int],
+#         bounds: tuple[float, float] = (-10.0, 10.0),
+#         rng: np.random.Generator | None = None,
+#         objective: str = "feasibility",
+#     ):
+#         super().__init__(candidates, n_voters, winners, bounds, rng, objective)
+#         self.variables: list[list[LpVariable]] | None = None
+
+#     def build(self) -> None:
+#         N = self.n_candidates
+#         V = self.n_voters
+#         self.model = LpProblem("marginal_lp", LpMinimize)
+#         self.variables = [
+#             [LpVariable(f"c_{i}_{r}", lowBound=0, cat="Integer") for r in range(N)]
+#             for i in range(N)
+#         ]
+#         c = self.variables
+
+#         for r in range(N):
+#             self.model += lpSum(c[i][r] for i in range(N)) == V
+#         for i in range(N):
+#             self.model += lpSum(c[i][r] for r in range(N)) == V
+
+#         w_plur = self.winners.get("plurality")
+#         w_borda = self.winners.get("borda")
+#         w_veto = self.winners.get("veto")
+
+#         if w_plur is not None:
+#             for i in range(N):
+#                 if i != w_plur:
+#                     self.model += c[w_plur][0] >= c[i][0] + 1
+
+#         if w_borda is not None:
+#             for i in range(N):
+#                 if i == w_borda:
+#                     continue
+#                 self.model += (
+#                     lpSum((N - 1 - r) * c[w_borda][r] for r in range(N))
+#                     >= lpSum((N - 1 - r) * c[i][r] for r in range(N)) + 1
+#                 )
+
+#         if w_veto is not None:
+#             for i in range(N):
+#                 if i == w_veto:
+#                     continue
+#                 self.model += (
+#                     lpSum(c[w_veto][r] for r in range(N - 1))
+#                     >= lpSum(c[i][r] for r in range(N - 1)) + 1
+#                 )
+
+#         # Balance the rank-position cells.
+#         self._add_objective([c[i][r] for i in range(N) for r in range(N)])
+
+#     def get_matrix(self) -> np.ndarray:
+#         N = self.n_candidates
+#         return np.array(
+#             [
+#                 [int(self.variables[i][r].varValue or 0) for r in range(N)]
+#                 for i in range(N)
+#             ]
+#         )
+
+#     def generate_voter_positions(self) -> np.ndarray:
+#         N = self.n_candidates
+#         V = self.n_voters
+#         remaining = self.get_matrix()
+
+#         voter_rankings: list[list[int]] = []
+#         for voter_idx in range(V):
+#             ranking = [-1] * N
+#             used: set[int] = set()
+
+#             def fill(r: int) -> bool:
+#                 if r == N:
+#                     return True
+#                 available = [
+#                     i for i in range(N) if remaining[i][r] > 0 and i not in used
+#                 ]
+#                 for k in self.rng.permutation(len(available)):
+#                     chosen = available[int(k)]
+#                     ranking[r] = chosen
+#                     used.add(chosen)
+#                     remaining[chosen][r] -= 1
+#                     if fill(r + 1):
+#                         return True
+#                     ranking[r] = -1
+#                     used.remove(chosen)
+#                     remaining[chosen][r] += 1
+#                 return False
+
+#             if not fill(0):
+#                 raise RuntimeError(
+#                     f"cannot build ranking for voter {voter_idx + 1}; "
+#                     f"matrix not decomposable (shouldn't happen for LP-produced matrices)"
+#                 )
+#             voter_rankings.append(ranking.copy())
+
+#         pool = self._sample_pool()
+#         positions = []
+#         for ranking in voter_rankings:
+#             pts = pool.get(tuple(ranking), [])
+#             if not pts:
+#                 positions.append(np.array([np.nan, np.nan]))
+#                 continue
+#             positions.append(pts[self.rng.integers(0, len(pts))])
+#         return np.array(positions)
