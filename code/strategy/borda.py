@@ -5,13 +5,8 @@ from candidate.candidate import Candidate
 
 
 class BordaCountStrategy(VotingStrategy):
-    @property
-    def key(self) -> str:
-        return "borda"
-
-    @property
-    def name(self) -> str:
-        return "Borda count"
+    key = "borda"
+    name = "Borda count"
 
     def choose(
         self, voter_position: np.ndarray, candidates: list[Candidate]

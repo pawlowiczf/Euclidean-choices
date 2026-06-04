@@ -5,13 +5,8 @@ from candidate.candidate import Candidate
 
 
 class PluralityStrategy(VotingStrategy):
-    @property
-    def key(self) -> str:
-        return "plurality"
-
-    @property
-    def name(self) -> str:
-        return "Plurality rule"
+    key = "plurality"
+    name = "Plurality rule"
 
     def choose(
         self, voter_position: np.ndarray, candidates: list[Candidate]

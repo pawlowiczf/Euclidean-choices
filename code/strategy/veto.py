@@ -5,13 +5,8 @@ from candidate.candidate import Candidate
 
 
 class VetoStrategy(VotingStrategy):
-    @property
-    def key(self) -> str:
-        return "veto"
-
-    @property
-    def name(self) -> str:
-        return "Veto rule"
+    key = "veto"
+    name = "Veto rule"
 
     def choose(
         self, voter_position: np.ndarray, candidates: list[Candidate]

@@ -12,8 +12,7 @@ from strategy.veto import VetoStrategy
 # Map a strategy key (as used in the `winners` dict) to its human-readable name,
 # so legends read "Borda count" instead of "borda".
 _STRATEGY_NAMES = {
-    s.key: s.name
-    for s in (PluralityStrategy(), BordaCountStrategy(), VetoStrategy())
+    s.key: s.name for s in (PluralityStrategy(), BordaCountStrategy(), VetoStrategy())
 }
 
 
@@ -143,7 +142,7 @@ def plot_results(
             )
         )
 
-    title = f"Voter Distribution in Euclidean Space (n = {len(voters_arr)})"
+    title = f"Voter Distribution in Euclidean Space ({len(voters_arr)} voters)"
     margin = 0.5
     ax.set_xlim(bounds[0] - margin, bounds[1] + margin)
     ax.set_ylim(bounds[0] - margin, bounds[1] + margin)
@@ -305,7 +304,7 @@ def plot_lp_result(
             )
 
     n_skipped = int((~valid).sum())
-    title = f"Voter Distribution in Euclidean Space (n = {len(placed)})"
+    title = f"Voter Distribution in Euclidean Space ({len(placed)} voters)"
     if n_skipped:
         title += f"\n{n_skipped} voters excluded: ranking not realizable in 2D"
 
@@ -446,7 +445,7 @@ def plot_lp_swap_result(
 
     title = (
         "Voter Distribution in Euclidean Space "
-        f"(n = {len(existing) + len(added)}: {len(existing)} + {len(added)} added)"
+        f"({len(existing) + len(added)} voters: {len(existing)} + {len(added)} added)"
     )
     margin = 0.5
     ax.set_xlim(bounds[0] - margin, bounds[1] + margin)

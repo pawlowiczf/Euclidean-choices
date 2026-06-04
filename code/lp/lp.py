@@ -5,25 +5,21 @@ import numpy as np
 from pulp import LpProblem, LpVariable, lpSum, LpMinimize, LpStatus, PULP_CBC_CMD
 from scipy.optimize import linprog
 
+from candidate.candidate import Candidate
+from voter.voter import Voter
 
 Ranking = tuple[int, ...]
 
-# Selectable "evenness" objectives that pick *which* feasible voter distribution to
-# return (all of them are linear). They only affect quality/shape of the solution,
-# not whether the winner constraints are satisfiable.
-#   "feasibility" - no objective, any feasible point
+# Linear objectives that pick *which* feasible voter distribution to return.
+# The first four are "evenness" objectives (they only shape the solution, not whether
+# the winner constraints are satisfiable); "min_total" instead minimizes how many
+# voters are used. In the swap model the total is always capped at n_voters, so:
+#   "feasibility" - no objective, any feasible point (up to n_voters added)
 #   "minmax"      - min M  s.t. x_s <= M           (cap the largest bucket)
-#   "maxmin"      - max m  s.t. x_s >= m            (lift the smallest bucket)
+#   "maxmin"      - max m  s.t. x_s >= m            (fill ~n_voters, evenly)
 #   "range"       - min M - m  s.t. m <= x_s <= M   (squeeze the spread)
-OBJECTIVES = ("feasibility", "minmax", "maxmin", "range")
-
-# How a "swap" model (existing voters fixed, extra voters x added) chooses how many
-# voters to add:
-#   "fixed"   - add exactly n_voters more (sum x == n_voters) and let `objective`
-#               decide how to spread them; lets you ask for an even distribution.
-#   "minimal" - add as few voters as possible (minimize sum x); the result tends to
-#               be concentrated in a few ranking buckets, and `objective` is ignored.
-MODES = ("fixed", "minimal")
+#   "min_total"   - min sum x                       (add as few voters as possible)
+OBJECTIVES = ("feasibility", "minmax", "maxmin", "range", "min_total")
 
 
 class LpModel(ABC):
@@ -100,9 +96,11 @@ class LpModel(ABC):
         return counts
 
     def _add_objective(self, variables: list[LpVariable]) -> None:
-        """Set the configured evenness objective over the given count variables.
+        """Set the configured objective (self.objective) over the count variables.
 
-        variables : the per-bucket decision variables to balance
+        The evenness objectives ("minmax"/"maxmin"/"range") only shape *which*
+        feasible distribution is returned; "min_total" instead minimizes how many
+        voters are used (size, not shape).
 
         Auxiliary variables (M, m) are declared Integer. They are functionally pinned
         to the (integer) x_s at any feasible point, so integrality doesn't change the
@@ -113,7 +111,10 @@ class LpModel(ABC):
         if obj == "feasibility":
             return
 
-        if obj == "minmax":
+        if obj == "min_total":
+            self.model += lpSum(variables)
+
+        elif obj == "minmax":
             M = LpVariable("M", lowBound=0, cat="Integer")
             self.model += M
             for v in variables:
@@ -243,33 +244,27 @@ class PermutationLpModel(LpModel):
         for sigma, var in self.variables.items():
             print(f"{sigma}: {var.varValue}")
 
-###
-from voter.voter import Voter
 
 class PermutationSwapLpModel(LpModel):
     """LP with x[sigma] = number of voters whose full ranking is sigma."""
 
     def __init__(
         self,
-        candidates: list,
+        candidates: list[Candidate],
         voters: list[Voter],
-        n_voters: int,
+        max_added_voters: int,
         winners: dict[str, int],
         bounds: tuple[float, float] = (-10.0, 10.0),
         rng: np.random.Generator | None = None,
         pool_size: int = 300_000,
         objective: str = "feasibility",
-        mode: str = "fixed",
     ):
-        if mode not in MODES:
-            raise ValueError(f"mode must be one of {MODES}, got {mode!r}")
-
-        super().__init__(candidates, n_voters, winners, bounds, rng, objective)
+        super().__init__(candidates, max_added_voters, winners, bounds, rng, objective)
         self.pool_size = pool_size
         self.variables: dict[Ranking, LpVariable] | None = None
         self.realizable_rankings: list[Ranking] | None = None
         self.voters = voters
-        self.mode = mode
+        self.max_added_voters = max_added_voters
 
     def build(self) -> None:
         N = self.n_candidates
@@ -332,14 +327,11 @@ class PermutationSwapLpModel(LpModel):
                 if j != w_veto:
                     self.model += last_count[w_veto] + 1 <= last_count[j]
 
-        if self.mode == "fixed":
-            # Add exactly n_voters more and let `objective` shape their spread
-            # (e.g. "minmax" for the most even distribution over ranking buckets).
-            self.model += lpSum(x.values()) <= self.n_voters
-            self._add_objective(list(x.values()))
-        else:  # "minimal"
-            # Add as few voters as possible; `objective` is ignored here.
-            self.model += lpSum(x.values())
+        # Cap how many voters we may add; `objective` decides how to use that budget
+        # ("min_total" => as few as possible, "minmax"/"range" => few and spread,
+        # "maxmin" => fill ~max_added_voters evenly, "feasibility" => anything).
+        self.model += lpSum(x.values()) <= self.max_added_voters
+        self._add_objective(list(x.values()))
 
     def generate_voter_positions(self) -> np.ndarray:
         pool = self._sample_pool()
@@ -362,119 +354,3 @@ class PermutationSwapLpModel(LpModel):
             return
         for sigma, var in self.variables.items():
             print(f"{sigma}: {var.varValue}")
-
-####
-
-# class MarginalLpModel(LpModel):
-#     """LP with c[i][r] = number of voters who have candidate i at rank r."""
-
-#     def __init__(
-#         self,
-#         candidates: list,
-#         n_voters: int,
-#         winners: dict[str, int],
-#         bounds: tuple[float, float] = (-10.0, 10.0),
-#         rng: np.random.Generator | None = None,
-#         objective: str = "feasibility",
-#     ):
-#         super().__init__(candidates, n_voters, winners, bounds, rng, objective)
-#         self.variables: list[list[LpVariable]] | None = None
-
-#     def build(self) -> None:
-#         N = self.n_candidates
-#         V = self.n_voters
-#         self.model = LpProblem("marginal_lp", LpMinimize)
-#         self.variables = [
-#             [LpVariable(f"c_{i}_{r}", lowBound=0, cat="Integer") for r in range(N)]
-#             for i in range(N)
-#         ]
-#         c = self.variables
-
-#         for r in range(N):
-#             self.model += lpSum(c[i][r] for i in range(N)) == V
-#         for i in range(N):
-#             self.model += lpSum(c[i][r] for r in range(N)) == V
-
-#         w_plur = self.winners.get("plurality")
-#         w_borda = self.winners.get("borda")
-#         w_veto = self.winners.get("veto")
-
-#         if w_plur is not None:
-#             for i in range(N):
-#                 if i != w_plur:
-#                     self.model += c[w_plur][0] >= c[i][0] + 1
-
-#         if w_borda is not None:
-#             for i in range(N):
-#                 if i == w_borda:
-#                     continue
-#                 self.model += (
-#                     lpSum((N - 1 - r) * c[w_borda][r] for r in range(N))
-#                     >= lpSum((N - 1 - r) * c[i][r] for r in range(N)) + 1
-#                 )
-
-#         if w_veto is not None:
-#             for i in range(N):
-#                 if i == w_veto:
-#                     continue
-#                 self.model += (
-#                     lpSum(c[w_veto][r] for r in range(N - 1))
-#                     >= lpSum(c[i][r] for r in range(N - 1)) + 1
-#                 )
-
-#         # Balance the rank-position cells.
-#         self._add_objective([c[i][r] for i in range(N) for r in range(N)])
-
-#     def get_matrix(self) -> np.ndarray:
-#         N = self.n_candidates
-#         return np.array(
-#             [
-#                 [int(self.variables[i][r].varValue or 0) for r in range(N)]
-#                 for i in range(N)
-#             ]
-#         )
-
-#     def generate_voter_positions(self) -> np.ndarray:
-#         N = self.n_candidates
-#         V = self.n_voters
-#         remaining = self.get_matrix()
-
-#         voter_rankings: list[list[int]] = []
-#         for voter_idx in range(V):
-#             ranking = [-1] * N
-#             used: set[int] = set()
-
-#             def fill(r: int) -> bool:
-#                 if r == N:
-#                     return True
-#                 available = [
-#                     i for i in range(N) if remaining[i][r] > 0 and i not in used
-#                 ]
-#                 for k in self.rng.permutation(len(available)):
-#                     chosen = available[int(k)]
-#                     ranking[r] = chosen
-#                     used.add(chosen)
-#                     remaining[chosen][r] -= 1
-#                     if fill(r + 1):
-#                         return True
-#                     ranking[r] = -1
-#                     used.remove(chosen)
-#                     remaining[chosen][r] += 1
-#                 return False
-
-#             if not fill(0):
-#                 raise RuntimeError(
-#                     f"cannot build ranking for voter {voter_idx + 1}; "
-#                     f"matrix not decomposable (shouldn't happen for LP-produced matrices)"
-#                 )
-#             voter_rankings.append(ranking.copy())
-
-#         pool = self._sample_pool()
-#         positions = []
-#         for ranking in voter_rankings:
-#             pts = pool.get(tuple(ranking), [])
-#             if not pts:
-#                 positions.append(np.array([np.nan, np.nan]))
-#                 continue
-#             positions.append(pts[self.rng.integers(0, len(pts))])
-#         return np.array(positions)
