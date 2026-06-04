@@ -24,6 +24,18 @@ def random_2d_points(n: int = 5, bounds_x=(-5, 5), bounds_y=(-5, 5)) -> np.ndarr
     return points
 
 
+def _strip_axes(ax: plt.Axes):
+    """Remove tick marks and tick labels (the numbers on the axes) while keeping
+    the box/frame around the plot."""
+    ax.tick_params(
+        axis="both",
+        which="both",
+        length=0,
+        labelbottom=False,
+        labelleft=False,
+    )
+
+
 def plot(candidates: np.ndarray, voters: np.ndarray, mpl_params: dict = None):
     plt.scatter(
         candidates[:, 0],
@@ -68,6 +80,7 @@ def plot_results(result: ElectionResult):
 
     plt.gcf().set_size_inches(8, 7)
     plt.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, fontsize=8)
+    _strip_axes(plt.gca())
     plt.tight_layout()
     plt.show()
 
@@ -78,13 +91,17 @@ def plot_lp_result(
     winners: dict[str, int] | None = None,
     bounds: tuple[float, float] = (-5.0, 5.0),
     ax: plt.Axes | None = None,
+    color_voters: bool = True,
 ):
-    """Plot voter positions from an LpModel: color voters by top choice, ring strategy winners.
+    """Plot voter positions from an LpModel.
 
-    candidates : list of objects with a .position attribute
-    positions  : (N, 2) array of voter positions; rows containing NaN are skipped
-    winners    : optional, e.g. {"plurality": 0, "borda": 1, "veto": 2}
-    bounds     : (lo, hi) — sets fixed xlim and ylim for stable plot scale across runs
+    candidates   : list of objects with a .position attribute
+    positions    : (N, 2) array of voter positions; rows containing NaN are skipped
+    winners      : optional, e.g. {"plurality": 0, "borda": 1, "veto": 2}
+    bounds       : (lo, hi) — sets fixed xlim and ylim for stable plot scale across runs
+    color_voters : if True, color voters by their top choice and draw candidates as
+                   colored "x" / winners as stars. If False, use a plain style: gray
+                   voter dots, black candidate dots, colored winner dots (all circles).
     """
     standalone = ax is None
     if standalone:
@@ -96,35 +113,62 @@ def plot_lp_result(
     valid = ~np.isnan(positions[:, 0])
     placed = positions[valid]
 
-    dists = np.linalg.norm(candidate_positions[None] - placed[:, None], axis=2)
-    top_choice = np.argmin(dists, axis=1)
-
     colors = plt.cm.tab10.colors
-    for cand_idx in range(n_candidates):
-        mask = top_choice == cand_idx
-        if not mask.any():
-            continue
-        pts = placed[mask]
+    winner_idxs = set(winners.values()) if winners else set()
+
+    if color_voters:
+        dists = np.linalg.norm(candidate_positions[None] - placed[:, None], axis=2)
+        top_choice = np.argmin(dists, axis=1)
+        for cand_idx in range(n_candidates):
+            mask = top_choice == cand_idx
+            if not mask.any():
+                continue
+            pts = placed[mask]
+            ax.scatter(
+                pts[:, 0],
+                pts[:, 1],
+                color=colors[cand_idx % len(colors)],
+                s=60,
+                alpha=0.75,
+                edgecolors="black",
+                linewidths=0.4,
+                label=f"Top choice: C{cand_idx} ({int(mask.sum())} voters)",
+            )
+    else:
         ax.scatter(
-            pts[:, 0],
-            pts[:, 1],
-            color=colors[cand_idx % len(colors)],
-            s=60,
-            alpha=0.75,
-            edgecolors="black",
-            linewidths=0.4,
-            label=f"Top choice: C{cand_idx} ({int(mask.sum())} voters)",
+            placed[:, 0],
+            placed[:, 1],
+            color="gray",
+            s=45,
+            alpha=0.4,
+            label=f"Voters ({len(placed)})",
         )
 
+    # Candidate markers. In colored mode non-winners are "x"; a winner's marker
+    # becomes a star (drawn below) so the symbols never stack. In plain mode every
+    # candidate is a dot, black for non-winners and colored for winners.
+    cand_label_done = False
     for idx, c in enumerate(candidates):
-        ax.scatter(
-            *c.position,
-            marker="x",
-            s=150,
-            c=[colors[idx % len(colors)]],
-            linewidths=3,
-            zorder=4,
-        )
+        if idx not in winner_idxs:
+            if color_voters:
+                ax.scatter(
+                    *c.position,
+                    marker="x",
+                    s=150,
+                    c=[colors[idx % len(colors)]],
+                    linewidths=3,
+                    zorder=4,
+                )
+            else:
+                ax.scatter(
+                    *c.position,
+                    marker="o",
+                    s=90,
+                    c="#555555",
+                    zorder=4,
+                    label=None if cand_label_done else "Candidate",
+                )
+                cand_label_done = True
         ax.annotate(
             f"C{idx}",
             c.position,
@@ -137,29 +181,44 @@ def plot_lp_result(
 
     winner_proxies = []
     if winners:
-        for strategy, idx in winners.items():
-            ring_color = colors[idx % len(colors)]
-            ring_size = 350
+        # Colored mode: a star filled in the candidate's color so it stands out
+        # inside a same-colored cluster. Plain mode: a dot in a per-strategy color
+        # so winners pop against the gray voters / black candidates. Either way,
+        # nest the marks (smaller on top) when strategies share a candidate.
+        winner_level = {}
+        for s_idx, (strategy, idx) in enumerate(winners.items()):
+            level = winner_level.get(idx, 0)
+            winner_level[idx] = level + 1
+            if color_voters:
+                marker = "*"
+                win_color = colors[idx % len(colors)]
+                marker_size = 320 + level * 320
+                proxy_size = 11
+            else:
+                marker = "o"
+                win_color = colors[s_idx % len(colors)]
+                marker_size = 160 + level * 180
+                proxy_size = 11
             ax.scatter(
                 *candidates[idx].position,
-                marker="o",
-                s=ring_size,
-                facecolors="none",
-                edgecolors=ring_color,
-                linewidths=3,
-                zorder=5,
+                marker=marker,
+                s=marker_size,
+                facecolors=win_color,
+                edgecolors="black",
+                linewidths=1.2,
+                zorder=5 - level * 0.1,
             )
             winner_proxies.append(
                 mlines.Line2D(
                     [],
                     [],
-                    marker="o",
+                    marker=marker,
                     linestyle="None",
-                    markerfacecolor="none",
-                    markeredgecolor=ring_color,
-                    markersize=10,
-                    markeredgewidth=2,
-                    label=f"{strategy} → C{idx}",
+                    markerfacecolor=win_color,
+                    markeredgecolor="black",
+                    markersize=proxy_size,
+                    markeredgewidth=1.2,
+                    label=f"Winner – {strategy} (C{idx})",
                 )
             )
 
@@ -173,13 +232,17 @@ def plot_lp_result(
     ax.set_ylim(bounds[0] - margin, bounds[1] + margin)
     ax.set_aspect("equal")
     ax.set_title(title)
+    _strip_axes(ax)
     voter_handles, _ = ax.get_legend_handles_labels()
     ax.legend(
         handles=voter_handles + winner_proxies,
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.05),
+        bbox_to_anchor=(0.5, -0.01),
         ncols=3,
         fontsize=8,
+        labelspacing=0.9,
+        columnspacing=1.5,
+        handletextpad=0.6,
     )
 
     if standalone:
