@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from itertools import permutations
+from typing import Callable
 
 import numpy as np
 from pulp import LpProblem, LpVariable, lpSum, LpMinimize, LpStatus, PULP_CBC_CMD
@@ -53,6 +54,24 @@ class LpModel(ABC):
         self.status: str | None = None
 
         self._points_by_ranking: dict[Ranking, list[np.ndarray]] | None = None
+
+        # Extra constraints applied on top of the winner constraints in build().
+        # Each callable receives the model itself and adds constraints via
+        # `model.model += ...`, using `model.variables` (x_sigma per ranking).
+        self.extra_constraints: list[Callable[["LpModel"], None]] = []
+
+    def add_constraint(self, constraint: Callable[["LpModel"], None]) -> None:
+        """Register an extra constraint, applied on the next build().
+
+        `constraint` is called as `constraint(self)` from build(), after the
+        winner constraints and variables are set up, so it can freely add
+        `self.model += ...` expressions over `self.variables`.
+        """
+        self.extra_constraints.append(constraint)
+
+    def _apply_extra_constraints(self) -> None:
+        for constraint in self.extra_constraints:
+            constraint(self)
 
     def _sample_pool(self, size: int = 200_000) -> dict[Ranking, list[np.ndarray]]:
         if self._points_by_ranking is not None:
@@ -220,6 +239,7 @@ class PermutationLpModel(LpModel):
                 if j != w_veto:
                     self.model += last_count[w_veto] + 1 <= last_count[j]
 
+        self._apply_extra_constraints()
         self._add_objective(list(x.values()))
 
     def generate_voter_positions(self) -> np.ndarray:
@@ -244,6 +264,56 @@ class PermutationLpModel(LpModel):
         for sigma, var in self.variables.items():
             print(f"{sigma}: {var.varValue}")
 
+
+def exclude_current_solution(
+    model: "LpModel", min_new_voters: int = 1
+) -> Callable[["LpModel"], None]:
+    """Capture `model`'s current solution and return a cut excluding it.
+
+    Pass the result to `model.add_constraint(...)` and `model.build()` again
+    to re-solve under "give me a *different* solution": rankings (regions)
+    that were unused (x_sigma == 0) in the current solution must now hold at
+    least `min_new_voters` voters in total. This forces a structurally
+    different voter placement on every iteration.
+
+    `min_new_voters` controls *how* different the next solution must be -
+    with 1 (the default) a single voter moving into a previously-unused
+    region is enough, which can leave the rest of the distribution almost
+    identical. Raise it (e.g. to a fraction of `n_voters` /
+    `max_added_voters`) to require a bigger shift away from the current
+    solution.
+
+    Must be called *after* `model.solve()`, while `model.variables` still
+    holds the solved `varValue`s (the cut captures those values immediately;
+    `build()` recreates `self.variables` with fresh, unsolved LpVariables).
+    """
+    unused = [
+        sigma for sigma, var in model.variables.items() if not (var.varValue or 0)
+    ]
+    if not unused:
+        raise ValueError("every realizable ranking is already used; no cut to add")
+
+    def cut(m: "LpModel") -> None:
+        m.model += lpSum(m.variables[sigma] for sigma in unused) >= min_new_voters
+
+    return cut
+
+def exclude_largest_variable(model: "LpModel") -> Callable[["LpModel"], None]:
+    """Capture `model`'s current solution and return a cut that forces the
+    variable with the largest current value to zero in the next solve.
+
+    Must be called *after* `model.solve()`, while `model.variables` still
+    holds the solved `varValue`s.
+    """
+    largest_sigma = max(
+        model.variables,
+        key=lambda sigma: model.variables[sigma].varValue or 0,
+    )
+
+    def cut(m: "LpModel") -> None:
+        m.model += m.variables[largest_sigma] == 0
+
+    return cut
 
 class PermutationSwapLpModel(LpModel):
     """LP with x[sigma] = number of voters whose full ranking is sigma."""
@@ -331,6 +401,7 @@ class PermutationSwapLpModel(LpModel):
         # ("min_total" => as few as possible, "minmax"/"range" => few and spread,
         # "maxmin" => fill ~max_added_voters evenly, "feasibility" => anything).
         self.model += lpSum(x.values()) <= self.max_added_voters
+        self._apply_extra_constraints()
         self._add_objective(list(x.values()))
 
     def generate_voter_positions(self) -> np.ndarray:
