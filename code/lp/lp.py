@@ -315,6 +315,52 @@ def exclude_largest_variable(model: "LpModel") -> Callable[["LpModel"], None]:
 
     return cut
 
+
+def exclude_current_solution_bigm(
+    model: "LpModel", big_m: int | None = None
+) -> Callable[["LpModel"], None]:
+    """Capture `model`'s current solution x* and return a cut that excludes it
+    via a big-M disjunction, forcing the *next* solution to differ from x* in
+    at least one variable (by at least 1, up or down).
+
+    For every ranking sigma, two binary flags below_sigma/above_sigma gate a
+    pair of constraints:
+        x_sigma <= x*_sigma - 1 + M * (1 - below_sigma)
+        x_sigma >= x*_sigma + 1 - M * (1 - above_sigma)
+    When a flag is 0 the corresponding constraint is relaxed by M and becomes
+    non-binding; when it's 1, x_sigma is pushed below (resp. above) x*_sigma.
+    A global cut sum(below_sigma + above_sigma) >= 1 then forces at least one
+    flag on, i.e. at least one x_sigma must move away from x*_sigma.
+
+    `big_m` defaults to `model.n_voters + 1`, large enough that any x_sigma in
+    [0, n_voters] satisfies a relaxed constraint regardless of x*_sigma.
+
+    Must be called *after* `model.solve()`, while `model.variables` still
+    holds the solved `varValue`s (the cut captures those values immediately;
+    `build()` recreates `self.variables` with fresh, unsolved LpVariables).
+    """
+    x_star = {sigma: var.varValue or 0 for sigma, var in model.variables.items()}
+    M = big_m if big_m is not None else model.n_voters + 1
+    # Tag the auxiliary binaries with the cut's position in extra_constraints so
+    # repeated cuts (one per enumeration round) don't collide on variable names -
+    # every cut iterates over the same set of rankings, and PuLP/CBC chokes on
+    # duplicate variable names across constraints in the same model.
+    tag = len(model.extra_constraints)
+
+    def cut(m: "LpModel") -> None:
+        flags = []
+        for sigma, target in x_star.items():
+            below = LpVariable(f"below_{tag}_{sigma}", cat="Binary")
+            above = LpVariable(f"above_{tag}_{sigma}", cat="Binary")
+            m.model += m.variables[sigma] <= target - 1 + M * (1 - below)
+            m.model += m.variables[sigma] >= target + 1 - M * (1 - above)
+            flags.append(below)
+            flags.append(above)
+        m.model += lpSum(flags) >= 1
+
+    return cut
+
+
 class PermutationSwapLpModel(LpModel):
     """LP with x[sigma] = number of voters whose full ranking is sigma."""
 
