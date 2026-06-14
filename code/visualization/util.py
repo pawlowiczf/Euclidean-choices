@@ -75,12 +75,8 @@ def plot_results(
 
     voters_arr = np.array([v.position for v in result.voters])
 
-    winner_to_strategies = {}
-    for strategy_name, winner in result.winners().items():
-        winner_to_strategies.setdefault(winner.id, (winner, []))[1].append(
-            strategy_name
-        )
-    winner_ids = set(winner_to_strategies)
+    winners_dict = result.winners()
+    winner_ids = {w.id for w in winners_dict.values()}
 
     ax.scatter(
         voters_arr[:, 0],
@@ -117,16 +113,19 @@ def plot_results(
 
     colors = plt.cm.tab10.colors
     winner_proxies = []
-    for i, (winner, strategy_names) in enumerate(winner_to_strategies.values()):
-        win_color = colors[i % len(colors)]
+    winner_level = {}
+    for s_idx, (strategy_name, winner) in enumerate(winners_dict.items()):
+        level = winner_level.get(winner.id, 0)
+        winner_level[winner.id] = level + 1
+        win_color = colors[s_idx % len(colors)]
         ax.scatter(
             *winner.position,
             marker="o",
-            s=160,
+            s=160 + level * 180,
             facecolors=win_color,
             edgecolors="black",
             linewidths=1.2,
-            zorder=5,
+            zorder=5 - level * 0.1,
         )
         winner_proxies.append(
             mlines.Line2D(
@@ -138,7 +137,7 @@ def plot_results(
                 markeredgecolor="black",
                 markersize=11,
                 markeredgewidth=1.2,
-                label=f"Winner – {', '.join(strategy_names)} (C{winner.id})",
+                label=f"Winner – {_strategy_label(strategy_name)} (C{winner.id})",
             )
         )
 
