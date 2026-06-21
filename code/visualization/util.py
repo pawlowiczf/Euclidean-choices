@@ -21,10 +21,10 @@ def _strategy_label(key: str) -> str:
     return _STRATEGY_NAMES.get(key, key)
 
 
-def random_2d_point(bounds_x=(-10, 10), bounds_y=(-10, 10)) -> tuple[float, float]:
+def random_2d_point(bounds_x=(-10, 10), bounds_y=(-10, 10)) -> np.ndarray:
     x = random.uniform(bounds_x[0], bounds_x[1])
     y = random.uniform(bounds_y[0], bounds_y[1])
-    return (x, y)
+    return np.array([x, y])
 
 
 def random_2d_points(n: int = 5, bounds_x=(-10, 10), bounds_y=(-10, 10)) -> np.ndarray:
@@ -110,9 +110,7 @@ def plot_results(
     colors = plt.cm.tab10.colors
 
     if color_voters:
-        dists = np.linalg.norm(
-            candidate_positions[None] - voters_arr[:, None], axis=2
-        )
+        dists = np.linalg.norm(candidate_positions[None] - voters_arr[:, None], axis=2)
         top_choice = np.argmin(dists, axis=1)
         for cand_idx in range(n_candidates):
             mask = top_choice == cand_idx

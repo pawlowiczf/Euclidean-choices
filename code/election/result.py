@@ -14,7 +14,7 @@ class ElectionResult:
     label: str | None = None
 
     def winner(self, strategy: VotingStrategy) -> Candidate:
-        return self.tallies[strategy.name].winner(self.candidates)
+        return self.tallies[strategy.key].winner(self.candidates)
 
     def winners(self) -> dict[str, Candidate]:
-        return {name: t.winner(self.candidates) for name, t in self.tallies.items()}
+        return {key: t.winner(self.candidates) for key, t in self.tallies.items()}

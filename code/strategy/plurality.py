@@ -1,18 +1,13 @@
 import numpy as np
 
 from strategy.strategy import VotingStrategy
-from candidate.candidate import Candidate
 
 
 class PluralityStrategy(VotingStrategy):
     key = "plurality"
     name = "Plurality rule"
 
-    def choose(
-        self, voter_position: np.ndarray, candidates: list[Candidate]
-    ) -> dict[int, float]:
-        distances = [
-            np.linalg.norm(voter_position - np.array(c.position)) for c in candidates
-        ]
-        idx = int(np.argmin(distances))
-        return {candidates[idx].id: 1.0}
+    def tally_scores(self, distances: np.ndarray) -> np.ndarray:
+        # One vote each to the nearest candidate; count votes per candidate.
+        nearest = np.argmin(distances, axis=1)
+        return np.bincount(nearest, minlength=distances.shape[1]).astype(float)

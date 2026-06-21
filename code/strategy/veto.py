@@ -1,18 +1,15 @@
 import numpy as np
 
 from strategy.strategy import VotingStrategy
-from candidate.candidate import Candidate
 
 
 class VetoStrategy(VotingStrategy):
     key = "veto"
     name = "Veto rule"
 
-    def choose(
-        self, voter_position: np.ndarray, candidates: list[Candidate]
-    ) -> dict[int, float]:
-        distances = [
-            np.linalg.norm(voter_position - np.array(c.position)) for c in candidates
-        ]
-        veto_idx = int(np.argmax(distances))
-        return {c.id: (0.0 if i == veto_idx else 1.0) for i, c in enumerate(candidates)}
+    def tally_scores(self, distances: np.ndarray) -> np.ndarray:
+        # Every voter vetoes (0 points) their farthest candidate, 1 to the rest;
+        # a candidate's score is n_voters minus how often it was the farthest.
+        n_voters, n_candidates = distances.shape
+        vetoes = np.bincount(np.argmax(distances, axis=1), minlength=n_candidates)
+        return (n_voters - vetoes).astype(float)

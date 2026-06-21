@@ -1,24 +1,14 @@
 import numpy as np
 
 from strategy.strategy import VotingStrategy
-from candidate.candidate import Candidate
 
 
 class BordaCountStrategy(VotingStrategy):
     key = "borda"
     name = "Borda count"
 
-    def choose(
-        self, voter_position: np.ndarray, candidates: list[Candidate]
-    ) -> dict[int, float]:
-        distances = [
-            np.linalg.norm(voter_position - np.array(c.position)) for c in candidates
-        ]
-
-        ranking = np.argsort(distances)
-        n = len(candidates)
-
-        return {
-            candidates[int(candidate_idx)].id: (n - rank - 1)
-            for rank, candidate_idx in enumerate(ranking)
-        }
+    def tally_scores(self, distances: np.ndarray) -> np.ndarray:
+        n_candidates = distances.shape[1]
+        # rank 0 = nearest; nearest gets n-1 points, farthest gets 0.
+        rank = np.argsort(np.argsort(distances, axis=1), axis=1)
+        return ((n_candidates - 1) - rank).sum(axis=0).astype(float)

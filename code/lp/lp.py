@@ -298,6 +298,7 @@ def exclude_current_solution(
 
     return cut
 
+
 def exclude_largest_variable(model: "LpModel") -> Callable[["LpModel"], None]:
     """Capture `model`'s current solution and return a cut that forces the
     variable with the largest current value to zero in the next solve.
