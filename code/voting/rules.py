@@ -87,7 +87,7 @@ class ScoringRule(Rule):
 class PluralityRule(ScoringRule):
     """One point to each voter's favourite candidate."""
 
-    key, name = "plurality", "Plurality"
+    key, name = "plurality", "Plurality rule"
 
     def weights(self, n_candidates: int) -> np.ndarray:
         weights = np.zeros(n_candidates, dtype=int)
@@ -98,7 +98,7 @@ class PluralityRule(ScoringRule):
 class VetoRule(ScoringRule):
     """One point to everyone except each voter's least preferred candidate."""
 
-    key, name = "veto", "Veto"
+    key, name = "veto", "Veto rule"
 
     def weights(self, n_candidates: int) -> np.ndarray:
         weights = np.ones(n_candidates, dtype=int)

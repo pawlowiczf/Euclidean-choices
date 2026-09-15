@@ -177,7 +177,7 @@ class LpModel:
                     f"range 0..{self.n_candidates - 1}"
                 )
 
-    # --------------------------------------------------------------- regions
+    # Regions:
 
     @property
     def regions(self) -> dict:
@@ -193,7 +193,7 @@ class LpModel:
         """The rankings the LP is allowed to place voters into."""
         return sorted(self.regions)
 
-    # --------------------------------------------------------------- building
+    # Building:
 
     def add_constraint(self, constraint: Callable[["LpModel"], None]) -> None:
         """Register an extra constraint, applied on the next :meth:`build`.
@@ -313,7 +313,7 @@ class LpModel:
                 self.model += count <= largest
                 self.model += count >= smallest
 
-    # ---------------------------------------------------------------- solving
+    # Solving:
 
     def solve(self, msg: bool = False) -> str:
         """Build if needed, solve, and return the solver status."""
@@ -372,10 +372,7 @@ class LpModel:
         return np.vstack(chunks) if chunks else np.empty((0, 2))
 
 
-# --------------------------------------------------------------------------
-# Cuts: ask for a different solution than the one just found
-# --------------------------------------------------------------------------
-
+# Cuts:
 
 def exclude_current_solution(
     model: LpModel, min_new_voters: int = 1
