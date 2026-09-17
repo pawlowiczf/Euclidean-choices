@@ -27,7 +27,7 @@ If there are at least three candidates, there is no preference-based voting syst
 2. Pareto consistency, and 
 3. independence of irrelevant alternatives
 
-#### Gibbard and Satterthwaite
+### Gibbard and Satterthwaite
 If there are at least three candidates, there is no preference-based voting system that satisfies the following four properties at the same time: 
 1. nondictatorship, 
 2. resoluteness, 

@@ -308,8 +308,36 @@ def register_rule(rule: Rule, replace: bool = False) -> Rule:
     return rule
 
 
-def rule_for_key(key: str) -> Rule:
-    """Look a rule up by key, understanding ``approvalK`` as k-approval."""
+def rule_key(rule) -> str:
+    """The key naming a rule, from a key, a ``Rule``, or a ``Rule`` subclass.
+
+    A rule gets named from outside in several places - LP targets, plot legends,
+    stored results - and each of them is somewhere a rule object can plausibly be
+    passed where its key was meant. Normalising here means that mistake never
+    reaches ``str`` methods and surfaces as an ``AttributeError`` further down.
+    """
+    if isinstance(rule, str):
+        return rule
+    key = getattr(rule, "key", None)
+    if isinstance(key, str) and key:
+        return key
+    if isinstance(rule, type):
+        raise TypeError(
+            f"{rule.__name__} sets its key per instance, so the class on its own "
+            f"names no rule - pass an instance, e.g. {rule.__name__}(...)"
+        )
+    raise TypeError(f"expected a rule key, a Rule or a Rule subclass, got {rule!r}")
+
+
+def rule_for_key(key) -> Rule:
+    """Look a rule up by key, understanding ``approvalK`` as k-approval.
+
+    A ``Rule`` is returned as itself, so an unregistered custom rule survives the
+    round trip; a key or a rule class goes through the registry.
+    """
+    if isinstance(key, Rule):
+        return key
+    key = rule_key(key)
     if key in RULES:
         return RULES[key]
     if key.startswith("approval") and key[len("approval") :].isdigit():
@@ -317,9 +345,9 @@ def rule_for_key(key: str) -> Rule:
     raise KeyError(f"unknown rule {key!r}; known rules: {sorted(RULES)}")
 
 
-def rule_name(key: str) -> str:
+def rule_name(key) -> str:
     """Readable name for a key, falling back to the key itself."""
     try:
         return rule_for_key(key).name
-    except KeyError:
-        return key
+    except (KeyError, TypeError):
+        return str(key)

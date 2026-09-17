@@ -92,6 +92,18 @@ def test_election_wires_rules_to_positions():
     assert set(result.winners()) == {"plurality", "borda", "veto"}
 
 
+def test_distinct_winners_is_stronger_than_disagreement():
+    voters, candidates = random_election(200, 5, 3)
+    result = Election(candidates, voters).compare([PLURALITY, BORDA, VETO])
+
+    indices = list(result.winner_indices().values())
+    assert result.rules_disagree() == (len(set(indices)) > 1)
+    assert result.winners_all_distinct() == (len(set(indices)) == len(indices))
+    # Distinct is the stronger claim, so it implies disagreement but not the reverse.
+    assert not result.winners_all_distinct() or result.rules_disagree()
+    assert result.winners_all_distinct() == (not result.shared_winners())
+
+
 # --------------------------------------------------------------------------
 # Profiles
 # --------------------------------------------------------------------------

@@ -55,12 +55,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Voting systems/Ideas.md",
+                "file": "Voting systems/Properties.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Ideas"
+              "title": "Properties"
             }
           }
         ],
@@ -233,12 +233,12 @@
   },
   "active": "c5083f65f95dc84c",
   "lastOpenFiles": [
-    "n01.md",
-    "Voting systems/Introduction.md",
     "Voting systems/Methods.md",
+    "Voting systems/Introduction.md",
+    "Voting systems/Ideas.md",
+    "n01.md",
     "Voting systems/Properties.md",
     "Implementations/Voters distribution with fixed candidates.md",
-    "Voting systems/Ideas.md",
     "Implementations",
     "Voting systems/Untitled",
     "Introduction.md",

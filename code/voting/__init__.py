@@ -64,6 +64,7 @@ from voting.rules import (
     VetoRule,
     register_rule,
     rule_for_key,
+    rule_key,
     rule_name,
 )
 
@@ -93,6 +94,7 @@ __all__ = [
     "RULES",
     "register_rule",
     "rule_for_key",
+    "rule_key",
     "rule_name",
     # building electorates
     "LpModel",

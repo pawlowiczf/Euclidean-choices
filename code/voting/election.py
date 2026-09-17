@@ -121,6 +121,27 @@ class ElectionResult:
         """True if the rules did not all pick the same candidate."""
         return len(set(self.winner_indices().values())) > 1
 
+    def winners_all_distinct(self) -> bool:
+        """True if no two rules picked the same candidate.
+
+        Stronger than :meth:`rules_disagree`, which only asks whether the rules
+        failed to be unanimous. The two part company on the middling case: with
+        three rules, two agreeing and one dissenting counts as disagreement but
+        not as distinct.
+        """
+        indices = list(self.winner_indices().values())
+        return len(set(indices)) == len(indices)
+
+    def shared_winners(self) -> dict:
+        """``{candidate index: the rule keys that picked it}``, repeats only.
+
+        What :meth:`winners_all_distinct` returned False about.
+        """
+        by_candidate: dict = {}
+        for key, index in self.winner_indices().items():
+            by_candidate.setdefault(index, []).append(key)
+        return {i: keys for i, keys in by_candidate.items() if len(keys) > 1}
+
 
 class Election:
     """Candidates, voters, and the profile their positions induce."""

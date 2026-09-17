@@ -27,7 +27,7 @@ import numpy as np
 from pulp import PULP_CBC_CMD, LpMinimize, LpProblem, LpStatus, LpVariable, lpSum
 
 from voting.profile import Profile, Ranking
-from voting.rules import ScoringRule, rule_for_key
+from voting.rules import ScoringRule, rule_for_key, rule_key
 
 #: How the model chooses *which* feasible electorate to return.
 #:
@@ -78,9 +78,12 @@ class LpModel:
 
         LpModel(candidates, winners={...}, base_voters=voters, max_added=500)
 
-    ``winners`` maps a rule key to the candidate index that must win it. Pass
-    ``condorcet_winner=j`` to additionally require that ``j`` beats every other
-    candidate head to head.
+    ``winners`` maps a rule to the candidate index that must win it, keyed by
+    rule key, rule object, or rule class - ``{"plurality": 0}``,
+    ``{PluralityRule(): 0}`` and ``{PluralityRule: 0}`` all mean the same thing.
+    Rules whose key depends on a parameter, such as ``KApprovalRule(3)``, must be
+    passed as instances. Pass ``condorcet_winner=j`` to additionally require that
+    ``j`` beats every other candidate head to head.
     """
 
     def __init__(
@@ -112,7 +115,7 @@ class LpModel:
             [getattr(c, "position", c) for c in candidates], dtype=float
         )
         self.n_candidates = len(self.candidate_positions)
-        self.winners = dict(winners or {})
+        self.winners = {rule_key(k): v for k, v in (winners or {}).items()}
         self.condorcet_winner = condorcet_winner
         self.n_voters = n_voters
         self.max_added = max_added
@@ -349,7 +352,17 @@ class LpModel:
         """``{rule key: who actually wins}`` on the solved profile.
 
         Every target should appear with the candidate that was asked for.
+
+        Refuses unless the last solve came back ``Optimal``. On an infeasible or
+        unsolved model the counts are meaningless, but the winners read off them
+        still form a complete, plausible-looking dict - the same trap
+        :meth:`_check_targets` guards against at the other end.
         """
+        if self.status != "Optimal":
+            raise ValueError(
+                f"model status is {self.status!r}, not 'Optimal' - there is no "
+                "solution to check"
+            )
         profile = self.solution_profile()
         outcome = {key: rule_for_key(key).winner(profile) for key in self.winners}
         if self.condorcet_winner is not None:
