@@ -4,67 +4,24 @@
     "type": "split",
     "children": [
       {
-        "id": "eb2a19347083c6be",
+        "id": "19e876596eb9265a",
         "type": "tabs",
         "children": [
           {
-            "id": "fd61959db77efcfc",
+            "id": "f00327ba146b43c1",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Implementations/Voters distribution with fixed candidates.md",
+                "file": "Topics.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Voters distribution with fixed candidates"
-            }
-          },
-          {
-            "id": "81f526cc8809cf96",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Voting systems/Properties.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "Properties"
-            }
-          },
-          {
-            "id": "a5319eea8016ca93",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Voting systems/Methods.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "Methods"
-            }
-          },
-          {
-            "id": "c5083f65f95dc84c",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Voting systems/Properties.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "Properties"
+              "title": "Topics"
             }
           }
-        ],
-        "currentTab": 3
+        ]
       }
     ],
     "direction": "vertical"
@@ -231,17 +188,17 @@
       "bases:Create new base": false
     }
   },
-  "active": "c5083f65f95dc84c",
+  "active": "bb860ee611d7504f",
   "lastOpenFiles": [
+    "Voting systems/Ideas.md",
+    "Implementations/Voters distribution with fixed candidates.md",
+    "Voting systems/Properties.md",
     "Voting systems/Methods.md",
     "Voting systems/Introduction.md",
-    "Voting systems/Ideas.md",
-    "n01.md",
-    "Voting systems/Properties.md",
-    "Implementations/Voters distribution with fixed candidates.md",
+    "Voting systems",
     "Implementations",
+    "Topics.md",
     "Voting systems/Untitled",
-    "Introduction.md",
-    "Voting systems"
+    "Introduction.md"
   ]
 }
